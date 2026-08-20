@@ -1,0 +1,70 @@
+{
+  "medicines": [
+    {
+      "name": "Paracetamol 500 mg",
+      "symptoms": [
+        "fiebre",
+        "dolor de cabeza",
+        "dolor leve",
+        "fever",
+        "headache"
+      ],
+      "price": 2.5,
+      "stock": 30,
+      "prescription_required": false,
+      "warning": "No exceder la dosis indicada en el empaque. Evitar en caso de enfermedad hepática grave."
+    },
+    {
+      "name": "Ibuprofeno 200 mg",
+      "symptoms": [
+        "inflamacion",
+        "dolor leve",
+        "dolor de cabeza",
+        "inflammation"
+      ],
+      "price": 3.25,
+      "stock": 20,
+      "prescription_required": false,
+      "warning": "Evitar durante el embarazo, con úlceras estomacales, enfermedad renal o anticoagulantes."
+    },
+    {
+      "name": "Loratadina 10 mg",
+      "symptoms": [
+        "alergia",
+        "estornudos",
+        "goteo nasal",
+        "allergy"
+      ],
+      "price": 4.0,
+      "stock": 16,
+      "prescription_required": false,
+      "warning": "Consultar a un profesional antes de usar durante el embarazo o con enfermedad hepática."
+    },
+    {
+      "name": "Sales de rehidratación oral",
+      "symptoms": [
+        "deshidratacion",
+        "diarrea",
+        "vomitos",
+        "dehydration",
+        "diarrhea"
+      ],
+      "price": 1.75,
+      "stock": 25,
+      "prescription_required": false,
+      "warning": "Buscar atención médica si hay sangre en las heces, deshidratación severa, vómitos persistentes o síntomas en bebés."
+    },
+    {
+      "name": "Amoxicilina 500 mg",
+      "symptoms": [
+        "infeccion bacteriana",
+        "bacterial infection"
+      ],
+      "price": 8.5,
+      "stock": 12,
+      "prescription_required": true,
+      "warning": "Solo con receta médica. Los antibióticos no deben usarse sin evaluación profesional."
+    }
+  ],
+  "orders": []
+}

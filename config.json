@@ -1,0 +1,24 @@
+{
+  "servers": {
+    "farmacia_local": {
+      "transport": "stdio",
+      "command": ["python", "pharmacy_server.py"],
+      "enabled": true
+    },
+    "sistema_archivos": {
+      "transport": "stdio",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "./workspace"],
+      "enabled": true
+    },
+    "git": {
+      "transport": "stdio",
+      "command": ["C:\\Users\\markp\\.local\\bin\\uvx.exe", "mcp-server-git", "--repository", "./workspace/demo-repo"],
+      "enabled": true
+    },
+    "farmacia_remota": {
+      "transport": "http",
+      "url_env": "PHARMACY_REMOTE_URL",
+      "enabled": false
+    }
+  }
+}

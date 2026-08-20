@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chatbot de Farmacia — MCP + Gemini</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="app__header">
+      <h1>💊 Chatbot de Farmacia</h1>
+      <p class="app__subtitle">Conectado a servidores MCP (Model Context Protocol) vía Gemini</p>
+      <button id="reset-btn" class="app__reset" title="Borrar contexto de la conversación">Nueva conversación</button>
+    </header>
+
+    <main id="chat" class="chat" aria-live="polite">
+      <div class="msg msg--bot">
+        <div class="msg__bubble">
+          ¡Hola! Puedo ayudarte a consultar el catálogo, buscar por síntoma, revisar existencias
+          o simular un pedido. No diagnostico ni sustituyo la atención médica profesional.
+        </div>
+      </div>
+    </main>
+
+    <form id="chat-form" class="composer">
+      <input
+        id="chat-input"
+        class="composer__input"
+        type="text"
+        maxlength="1000"
+        placeholder="Escribe tu mensaje..."
+        autocomplete="off"
+        required
+      />
+      <button type="submit" class="composer__send">Enviar</button>
+    </form>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

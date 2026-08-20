@@ -1,0 +1,133 @@
+:root {
+  --verde: #0f766e;
+  --verde-claro: #ccfbf1;
+  --fondo: #f4f6f5;
+  --texto: #1f2937;
+  --gris: #6b7280;
+  --borde: #e2e8f0;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: var(--fondo);
+  color: var(--texto);
+}
+
+.app {
+  max-width: 720px;
+  margin: 0 auto;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app__header {
+  padding: 1.25rem 1.5rem 1rem;
+  background: white;
+  border-bottom: 1px solid var(--borde);
+  position: relative;
+}
+
+.app__header h1 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.app__subtitle {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  color: var(--gris);
+}
+
+.app__reset {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.5rem;
+  background: var(--verde-claro);
+  color: var(--verde);
+  border: none;
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.app__reset:hover { filter: brightness(0.95); }
+
+.chat {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.msg { display: flex; }
+.msg--user { justify-content: flex-end; }
+
+.msg__bubble {
+  max-width: 80%;
+  padding: 0.65rem 0.9rem;
+  border-radius: 0.9rem;
+  line-height: 1.4;
+  font-size: 0.95rem;
+  white-space: pre-wrap;
+}
+
+.msg--bot .msg__bubble {
+  background: white;
+  border: 1px solid var(--borde);
+  border-bottom-left-radius: 0.25rem;
+}
+
+.msg--user .msg__bubble {
+  background: var(--verde);
+  color: white;
+  border-bottom-right-radius: 0.25rem;
+}
+
+.msg--error .msg__bubble {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.msg--pending .msg__bubble {
+  color: var(--gris);
+  font-style: italic;
+}
+
+.composer {
+  display: flex;
+  gap: 0.5rem;
+  padding: 1rem 1.5rem;
+  background: white;
+  border-top: 1px solid var(--borde);
+}
+
+.composer__input {
+  flex: 1;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  font-size: 0.95rem;
+  outline: none;
+}
+
+.composer__input:focus { border-color: var(--verde); }
+
+.composer__send {
+  background: var(--verde);
+  color: white;
+  border: none;
+  border-radius: 999px;
+  padding: 0.6rem 1.3rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+
+.composer__send:disabled { opacity: 0.6; cursor: not-allowed; }
