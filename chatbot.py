@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 import os
+import queue
 import re
 import shutil
 import subprocess
 import sys
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -22,7 +24,6 @@ PROTOCOL_VERSION = "2025-11-25"
 
 
 def load_dotenv() -> None:
-    """Carga un pequeño archivo .env local sin agregar una dependencia de terceros."""
     path = ROOT / ".env"
     if not path.exists():
         return
@@ -38,7 +39,6 @@ def load_dotenv() -> None:
 
 
 class InteractionLog:
-    """Registra en disco (JSON Lines) todas las peticiones y respuestas MCP, como pide el enunciado."""
 
     def __init__(self) -> None:
         log_dir = ROOT / "logs"
@@ -67,6 +67,8 @@ class McpClient:
         self.process: subprocess.Popen[str] | None = None
         self._lock = threading.Lock()
         self._stderr_lines: list[str] = []
+        self._stdout_queue: "queue.Queue[str | None]" = queue.Queue()
+        self.timeout = float(config.get("timeout_seconds", 60))
 
     def start(self) -> None:
         if self.config["transport"] == "stdio":
@@ -78,18 +80,21 @@ class McpClient:
                 if resolved:
                     command[0] = resolved
             child_env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")
-            self.process = subprocess.Popen(
-                command,
-                cwd=ROOT,
-                env=child_env,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                encoding="utf-8"
-            )
-
+            try:
+                self.process = subprocess.Popen(
+                    command,
+                    cwd=ROOT,
+                    env=child_env,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    encoding="utf-8"
+                )
+            except OSError as exc:
+                raise RuntimeError(f"no se pudo lanzar el proceso para '{self.name}' ({command[0]}): {exc}") from exc
             threading.Thread(target=self._drain_stderr, daemon=True).start()
+            threading.Thread(target=self._drain_stdout, daemon=True).start()
         self.request("initialize", {
             "protocolVersion": PROTOCOL_VERSION,
             "capabilities": {},
@@ -103,22 +108,44 @@ class McpClient:
             self._stderr_lines.append(line.rstrip())
             del self._stderr_lines[:-20]
 
+    def _drain_stdout(self) -> None:
+        assert self.process and self.process.stdout
+        for line in self.process.stdout:
+            self._stdout_queue.put(line)
+        self._stdout_queue.put(None)
+
+    def _closed_message(self) -> str:
+        detail = " | ".join(self._stderr_lines[-3:])
+        message = f"el servidor {self.name} se cerró inesperadamente"
+        if detail:
+            message += f" — causa reportada: {detail}"
+        return message
+
     def _send(self, payload: dict[str, Any]) -> dict[str, Any] | None:
         self.log.write(self.name, "request", payload)
         if self.config["transport"] == "stdio":
-            assert self.process and self.process.stdin and self.process.stdout
-            self.process.stdin.write(json.dumps(payload, ensure_ascii=False) + "\n")
-            self.process.stdin.flush()
+            assert self.process and self.process.stdin
+            if self.process.poll() is not None:
+                raise RuntimeError(self._closed_message())
+            try:
+                self.process.stdin.write(json.dumps(payload, ensure_ascii=False) + "\n")
+                self.process.stdin.flush()
+            except (BrokenPipeError, OSError) as exc:
+                raise RuntimeError(f"{self._closed_message()} (al escribir: {exc})") from exc
             if "id" not in payload:
                 return None
-            line = self.process.stdout.readline()
-            if not line:
-                detail = " | ".join(self._stderr_lines[-3:])
-                message = f"el servidor {self.name} se cerró inesperadamente"
-                if detail:
-                    message += f" — causa reportada: {detail}"
-                raise RuntimeError(message)
-            response = json.loads(line)
+            try:
+                line = self._stdout_queue.get(timeout=self.timeout)
+            except queue.Empty:
+                raise RuntimeError(
+                    f"el servidor {self.name} no respondió en {self.timeout:.0f}s (tiempo de espera agotado)"
+                ) from None
+            if line is None:
+                raise RuntimeError(self._closed_message())
+            try:
+                response = json.loads(line)
+            except json.JSONDecodeError as exc:
+                raise RuntimeError(f"el servidor {self.name} envió una respuesta que no es JSON válido: {exc}") from exc
         else:
             url = self.config.get("url") or os.getenv(self.config.get("url_env", ""), "")
             if not url:
@@ -134,9 +161,18 @@ class McpClient:
                 },
                 method="POST"
             )
-            with urllib.request.urlopen(request, timeout=30) as result:
-                raw = result.read()
-            response = json.loads(raw) if raw else None
+            try:
+                with urllib.request.urlopen(request, timeout=self.timeout) as result:
+                    raw = result.read()
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode("utf-8", errors="replace")
+                raise RuntimeError(f"el servidor remoto {self.name} respondió con error {exc.code}: {detail}") from exc
+            except urllib.error.URLError as exc:
+                raise RuntimeError(f"no se pudo conectar con el servidor remoto {self.name}: {exc.reason}") from exc
+            try:
+                response = json.loads(raw) if raw else None
+            except json.JSONDecodeError as exc:
+                raise RuntimeError(f"el servidor {self.name} envió una respuesta que no es JSON válido: {exc}") from exc
         if response is not None:
             self.log.write(self.name, "response", response)
         return response
@@ -166,7 +202,6 @@ class McpClient:
 
 
 def simplify_schema(schema: dict[str, Any]) -> dict[str, Any]:
-    """Conserva solo el subconjunto de OpenAPI que aceptan las declaraciones de función de Gemini."""
     allowed = {"type", "description", "properties", "required", "items", "enum", "minimum", "maximum"}
     result: dict[str, Any] = {}
     for key, value in schema.items():
@@ -182,9 +217,13 @@ def simplify_schema(schema: dict[str, Any]) -> dict[str, Any]:
 
 
 class GeminiApi:
+
+    RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+    MAX_INTENTOS = 3
+
     def __init__(self) -> None:
         self.api_key = os.getenv("GEMINI_API_KEY", "")
-        self.model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
+        self.model = os.getenv("GEMINI_MODEL", "gemini-3.5-flash-lite")
 
     def send(self, history: list[dict[str, Any]], tools: list[dict[str, Any]]) -> dict[str, Any]:
         if not self.api_key or self.api_key == "replace-me":
@@ -205,30 +244,81 @@ class GeminiApi:
         if tools:
             payload["tools"] = [{"functionDeclarations": tools}]
         model = urllib.parse.quote(self.model, safe="")
-        request = urllib.request.Request(
-            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-            data=json.dumps(payload).encode("utf-8"),
-            headers={"Content-Type": "application/json", "x-goog-api-key": self.api_key},
-            method="POST"
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=60) as response:
-                return json.loads(response.read())
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"Error de la API de Gemini {exc.code}: {detail}") from exc
-        except urllib.error.URLError as exc:
-            raise RuntimeError(f"No se pudo conectar con Gemini: {exc.reason}") from exc
+        request_body = json.dumps(payload).encode("utf-8")
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+
+        ultimo_error: Exception | None = None
+        for intento in range(1, self.MAX_INTENTOS + 1):
+            request = urllib.request.Request(
+                url,
+                data=request_body,
+                headers={"Content-Type": "application/json", "x-goog-api-key": self.api_key},
+                method="POST"
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=60) as response:
+                    raw = response.read()
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode("utf-8", errors="replace")
+                if exc.code in self.RETRYABLE_STATUS and intento < self.MAX_INTENTOS:
+                    ultimo_error = RuntimeError(f"Error de la API de Gemini {exc.code}: {detail}")
+                    time.sleep(2 ** (intento - 1))  # backoff: 1s, 2s, 4s...
+                    continue
+                raise RuntimeError(f"Error de la API de Gemini {exc.code}: {detail}") from exc
+            except urllib.error.URLError as exc:
+                if intento < self.MAX_INTENTOS:
+                    ultimo_error = RuntimeError(f"No se pudo conectar con Gemini: {exc.reason}")
+                    time.sleep(2 ** (intento - 1))
+                    continue
+                raise RuntimeError(f"No se pudo conectar con Gemini: {exc.reason}") from exc
+            except TimeoutError as exc:
+                if intento < self.MAX_INTENTOS:
+                    ultimo_error = RuntimeError("Tiempo de espera agotado al conectar con Gemini")
+                    time.sleep(2 ** (intento - 1))
+                    continue
+                raise RuntimeError("Tiempo de espera agotado al conectar con Gemini") from exc
+
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError as exc:
+                raise RuntimeError(f"Gemini devolvió una respuesta que no es JSON válido: {exc}") from exc
+
+        # No debería llegar aquí, pero por seguridad se propaga el último error visto.
+        raise ultimo_error or RuntimeError("No se pudo contactar a Gemini tras varios intentos.")
 
 
 def safe_tool_name(server: str, tool: str) -> str:
-    """Genera un nombre de función único y válido para Gemini a partir de servidor + herramienta."""
     return re.sub(r"[^A-Za-z0-9_.:-]", "_", f"{server}__{tool}")[:128]
 
 
+def _validar_config(config: Any) -> dict[str, Any]:
+    if not isinstance(config, dict) or not isinstance(config.get("servers"), dict):
+        raise RuntimeError("config.json debe contener un objeto 'servers' con la lista de servidores MCP")
+    for name, server_config in config["servers"].items():
+        if not isinstance(server_config, dict):
+            raise RuntimeError(f"config.json: la entrada '{name}' debe ser un objeto")
+        transport = server_config.get("transport")
+        if transport not in ("stdio", "http"):
+            raise RuntimeError(f"config.json: '{name}.transport' debe ser 'stdio' o 'http' (se recibió {transport!r})")
+        if transport == "stdio":
+            command = server_config.get("command")
+            if not isinstance(command, list) or not command or not all(isinstance(c, str) for c in command):
+                raise RuntimeError(f"config.json: '{name}.command' debe ser una lista de cadenas no vacía")
+        else:
+            if not server_config.get("url") and not server_config.get("url_env"):
+                raise RuntimeError(f"config.json: '{name}' con transport 'http' necesita 'url' o 'url_env'")
+    return config
+
+
 def load_clients(log: InteractionLog) -> tuple[dict[str, McpClient], list[dict[str, Any]], dict[str, tuple[str, str]]]:
-    """Lee config.json, arranca cada servidor MCP habilitado y arma la lista de herramientas para Gemini."""
-    config = json.loads((ROOT / "config.json").read_text(encoding="utf-8"))
+    config_path = ROOT / "config.json"
+    try:
+        raw_config = json.loads(config_path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"no se encontró {config_path}") from exc
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"{config_path} no es JSON válido: {exc}") from exc
+    config = _validar_config(raw_config)
     clients: dict[str, McpClient] = {}
     api_tools: list[dict[str, Any]] = []
     routes: dict[str, tuple[str, str]] = {}
@@ -271,10 +361,15 @@ def run_gemini_turn(
         content = candidates[0].get("content") or {"role": "model", "parts": []}
         history.append(content)
         parts = content.get("parts") or []
-        calls = [part["functionCall"] for part in parts if "functionCall" in part]
+        calls = [part["functionCall"] for part in parts if isinstance(part, dict) and "functionCall" in part]
         if not calls:
-            text = "".join(part.get("text", "") for part in parts).strip()
-            return text or "Gemini respondió sin contenido de texto."
+            text = "".join(part.get("text", "") for part in parts if isinstance(part, dict)).strip()
+            if not text:
+                finish_reason = candidates[0].get("finishReason", "")
+                if finish_reason and finish_reason != "STOP":
+                    return f"Gemini no generó una respuesta de texto (motivo: {finish_reason})."
+                return "Gemini respondió sin contenido de texto."
+            return text
 
         responses = []
         for call in calls:

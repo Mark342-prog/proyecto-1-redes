@@ -1,13 +1,31 @@
-"""Catálogo de farmacia y servicio de pedidos, usado por los dos transportes MCP (local y remoto)."""
 
 from __future__ import annotations
 
 import json
 import os
+import re
 import threading
 import uuid
 from pathlib import Path
 from typing import Any
+
+MAX_TEXT_LENGTH = 200
+
+_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def _validar_texto(valor: Any, campo: str, minimo: int = 2, maximo: int = MAX_TEXT_LENGTH) -> str:
+    """Convierte y valida un argumento de texto; lanza ValueError con un mensaje claro si es inválido."""
+    if valor is None:
+        raise ValueError(f"falta el campo obligatorio '{campo}'")
+    if not isinstance(valor, str):
+        raise ValueError(f"'{campo}' debe ser una cadena de texto, se recibió {type(valor).__name__}")
+    limpio = _CONTROL_CHARS.sub(" ", valor).strip()
+    if len(limpio) < minimo:
+        raise ValueError(f"'{campo}' debe contener al menos {minimo} caracteres")
+    if len(limpio) > maximo:
+        raise ValueError(f"'{campo}' no puede superar los {maximo} caracteres")
+    return limpio
 
 
 DATOS_POR_DEFECTO = {
@@ -59,7 +77,6 @@ DATOS_POR_DEFECTO = {
 
 
 class PharmacyService:
-    """Implementa las operaciones deterministas de la farmacia con reglas básicas de seguridad."""
 
     def __init__(self, data_path: str | Path | None = None) -> None:
         configurado = data_path or os.getenv("PHARMACY_DATA")
@@ -69,14 +86,31 @@ class PharmacyService:
             self._guardar(DATOS_POR_DEFECTO)
 
     def _cargar(self) -> dict[str, Any]:
-        return json.loads(self.data_path.read_text(encoding="utf-8"))
+        try:
+            texto = self.data_path.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise RuntimeError(f"no se pudo leer el archivo de datos ({self.data_path}): {exc}") from exc
+        try:
+            data = json.loads(texto)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(
+                f"el archivo de datos ({self.data_path}) está corrupto o no es JSON válido: {exc}"
+            ) from exc
+        if not isinstance(data, dict) or "medicines" not in data or "orders" not in data:
+            raise RuntimeError(
+                f"el archivo de datos ({self.data_path}) no tiene la estructura esperada "
+                "('medicines' y 'orders'); considera borrarlo para regenerarlo"
+            )
+        return data
 
     def _guardar(self, data: dict[str, Any]) -> None:
-        self.data_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        try:
+            self.data_path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        except OSError as exc:
+            raise RuntimeError(f"no se pudo escribir el archivo de datos ({self.data_path}): {exc}") from exc
 
     @staticmethod
     def tool_definitions() -> list[dict[str, Any]]:
-        """Define las herramientas MCP expuestas por este servidor (caso de uso: cadena de farmacias)."""
         return [
             {
                 "name": "list_medicines",
@@ -144,6 +178,9 @@ class PharmacyService:
 
     def call(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         """Ejecuta una herramienta por nombre. Lanza ValueError/KeyError en caso de error de negocio."""
+        if not isinstance(arguments, dict):
+            raise ValueError(f"'arguments' debe ser un objeto JSON, se recibió {type(arguments).__name__}")
+
         with self._lock:
             data = self._cargar()
             medicines = data["medicines"]
@@ -155,9 +192,7 @@ class PharmacyService:
                 }
 
             if name == "find_by_symptom":
-                symptom = str(arguments.get("symptom", "")).casefold().strip()
-                if len(symptom) < 2:
-                    raise ValueError("el síntoma debe contener al menos 2 caracteres")
+                symptom = _validar_texto(arguments.get("symptom"), "symptom").casefold()
                 matches = [
                     item for item in medicines
                     if not item["prescription_required"]
@@ -173,25 +208,27 @@ class PharmacyService:
                 }
 
             if name == "check_stock":
-                item = self._buscar(medicines, str(arguments.get("name", "")))
+                nombre = _validar_texto(arguments.get("name"), "name")
+                item = self._buscar(medicines, nombre)
                 if not item:
-                    raise ValueError("medicamento no encontrado")
+                    raise ValueError(f"medicamento no encontrado: '{nombre}'")
                 return item
 
             if name == "create_order":
-                item = self._buscar(medicines, str(arguments.get("name", "")))
+                nombre = _validar_texto(arguments.get("name"), "name")
+                customer = _validar_texto(arguments.get("customer_name"), "customer_name")
                 quantity = arguments.get("quantity")
-                customer = str(arguments.get("customer_name", "")).strip()
-                if not item:
-                    raise ValueError("medicamento no encontrado")
                 if not isinstance(quantity, int) or isinstance(quantity, bool) or not 1 <= quantity <= 10:
-                    raise ValueError("quantity debe ser un entero de 1 a 10")
-                if len(customer) < 2:
-                    raise ValueError("customer_name debe contener al menos 2 caracteres")
+                    raise ValueError("'quantity' debe ser un entero de 1 a 10")
+
+                item = self._buscar(medicines, nombre)
+                if not item:
+                    raise ValueError(f"medicamento no encontrado: '{nombre}'")
                 if item["prescription_required"]:
                     raise ValueError("este medicamento requiere receta y no se puede pedir por este medio")
                 if item["stock"] < quantity:
                     raise ValueError(f"existencias insuficientes; solo hay {item['stock']} disponibles")
+
                 item["stock"] -= quantity
                 order = {
                     "order_id": f"ORD-{uuid.uuid4().hex[:8].upper()}",
