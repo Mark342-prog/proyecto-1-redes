@@ -1,5 +1,3 @@
-"""Chatbot de terminal con Gemini conectado a servidores MCP, sin usar SDKs de LLM ni de MCP."""
-
 from __future__ import annotations
 
 import json
@@ -19,7 +17,6 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent
-PROTOCOL_VERSION = "2025-11-25"
 
 def load_dotenv() -> None:
     """Carga un .env local simple, sin depender de una librería externa."""
@@ -95,9 +92,9 @@ class McpClient:
             del self._stderr_lines[:-20]
 
     def _pump_stdout(self) -> None:
-        for line in self.process.stdout:  # type: ignore[union-attr]
+        for line in self.process.stdout: 
             self._stdout_queue.put(line)
-        self._stdout_queue.put(None)  # señal de EOF para desbloquear lecturas pendientes
+        self._stdout_queue.put(None) 
 
     def _closed_message(self) -> str:
         detail = " | ".join(self._stderr_lines[-3:])
