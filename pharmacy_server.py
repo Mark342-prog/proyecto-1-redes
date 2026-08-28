@@ -1,8 +1,4 @@
-"""Servidor MCP local: JSON-RPC delimitado por líneas sobre stdin/stdout (transporte 'stdio').
 
-El chatbot lo lanza como subproceso, escribe una petición JSON por línea en su
-entrada estándar y lee la respuesta de la salida estándar.
-"""
 
 from __future__ import annotations
 

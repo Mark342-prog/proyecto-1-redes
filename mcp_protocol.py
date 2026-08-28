@@ -1,7 +1,3 @@
-"""Núcleo del protocolo MCP (JSON-RPC 2.0), independiente del transporte (stdio o HTTP):
-recibe un dict JSON-RPC decodificado y devuelve otro (o None si es notificación).
-"""
-
 from __future__ import annotations
 
 import json
@@ -14,7 +10,6 @@ SERVER_INFO = {"name": "simple-pharmacy-mcp", "version": "1.0.0"}
 
 
 class McpError(Exception):
-    """Error de protocolo con código JSON-RPC, para responder con {"error": ...}."""
 
     def __init__(self, code: int, message: str) -> None:
         super().__init__(message)
@@ -22,14 +17,12 @@ class McpError(Exception):
 
 
 class McpHandler:
-    """Traduce peticiones JSON-RPC del protocolo MCP a llamadas del servicio de farmacia."""
 
     def __init__(self) -> None:
         self.service = PharmacyService()
         self.initialized = False
 
     def handle(self, request: dict[str, Any]) -> dict[str, Any] | None:
-        """Procesa una petición y devuelve la respuesta, o None si era una notificación."""
         if not isinstance(request, dict):
             return {"jsonrpc": "2.0", "id": None,
                     "error": {"code": -32600, "message": "Petición inválida: se esperaba un objeto JSON"}}
