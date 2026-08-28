@@ -1,3 +1,5 @@
+"""Chatbot de terminal con Gemini conectado a servidores MCP, sin usar SDKs de LLM ni de MCP."""
+
 from __future__ import annotations
 
 import json
@@ -20,6 +22,7 @@ ROOT = Path(__file__).resolve().parent
 PROTOCOL_VERSION = "2025-11-25"
 
 def load_dotenv() -> None:
+    """Carga un .env local simple, sin depender de una librería externa."""
     path = ROOT / ".env"
     if not path.exists():
         return
@@ -33,6 +36,7 @@ def load_dotenv() -> None:
             os.environ.setdefault(key, value)
 
 class InteractionLog:
+    """Registra en disco (JSON Lines) todas las peticiones y respuestas MCP."""
 
     def __init__(self) -> None:
         log_dir = ROOT / "logs"
@@ -50,6 +54,7 @@ class InteractionLog:
         print(f"  [MCP {server} {direction}] {payload.get('method', 'response')}")
 
 class McpClient:
+    """Cliente MCP genérico: sirve para servidores locales (stdio) y remotos (HTTP)."""
 
     def __init__(self, name: str, config: dict[str, Any], log: InteractionLog) -> None:
         self.name, self.config, self.log = name, config, log
@@ -239,9 +244,11 @@ class GeminiApi:
             time.sleep(2 ** (intento - 1))  # backoff: 1s, 2s, 4s...
 
 def safe_tool_name(server: str, tool: str) -> str:
+    """Genera un nombre de función único y válido para Gemini a partir de servidor + herramienta."""
     return re.sub(r"[^A-Za-z0-9_.:-]", "_", f"{server}__{tool}")[:128]
 
 def _validar_config(config: Any) -> dict[str, Any]:
+    """Valida la forma de config.json y da mensajes claros en vez de un KeyError críptico."""
     if not isinstance(config, dict) or not isinstance(config.get("servers"), dict):
         raise RuntimeError("config.json debe contener un objeto 'servers' con la lista de servidores MCP")
     for name, sc in config["servers"].items():
@@ -259,6 +266,7 @@ def _validar_config(config: Any) -> dict[str, Any]:
     return config
 
 def load_clients(log: InteractionLog) -> tuple[dict[str, McpClient], list[dict[str, Any]], dict[str, tuple[str, str]]]:
+    """Lee config.json, arranca cada servidor MCP habilitado y arma la lista de herramientas para Gemini."""
     config_path = ROOT / "config.json"
     try:
         config = _validar_config(json.loads(config_path.read_text(encoding="utf-8")))
@@ -294,6 +302,7 @@ def run_gemini_turn(
     prompt: str, history: list[dict[str, Any]], gemini: GeminiApi,
     clients: dict[str, McpClient], api_tools: list[dict[str, Any]], routes: dict[str, tuple[str, str]]
 ) -> str:
+    """Envía un mensaje a Gemini y resuelve, en bucle, las llamadas a herramientas MCP que pida."""
     history.append({"role": "user", "parts": [{"text": prompt}]})
     for _ in range(5):
         answer = gemini.send(history, api_tools)
