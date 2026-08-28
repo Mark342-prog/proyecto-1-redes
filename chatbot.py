@@ -33,7 +33,6 @@ def load_dotenv() -> None:
             os.environ.setdefault(key, value)
 
 class InteractionLog:
-    """Registra en disco (JSON Lines) todas las peticiones y respuestas MCP."""
 
     def __init__(self) -> None:
         log_dir = ROOT / "logs"
@@ -59,16 +58,12 @@ class McpClient:
         self.process: subprocess.Popen[str] | None = None
         self._lock = threading.Lock()
         self._stderr_lines: list[str] = []
-        # Cola alimentada por un hilo lector: permite un get(timeout=...) real,
-        # a diferencia de un readline() bloqueante (funciona igual en Windows).
         self._stdout_queue: "queue.Queue[str | None]" = queue.Queue()
         self.timeout = float(config.get("timeout_seconds", 60))
 
     def start(self) -> None:
         if self.config["transport"] == "stdio":
             command = list(self.config["command"])
-            # "npx"/"uvx" en Windows son shims (.cmd) que subprocess no localiza
-            # sin shutil.which(); "python" se fija al intérprete actual.
             command[0] = sys.executable if command[0] == "python" else (shutil.which(command[0]) or command[0])
             env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1")  # evita romper acentos en Windows
             try:
@@ -87,7 +82,7 @@ class McpClient:
         self.notify("notifications/initialized", {})
 
     def _pump_stderr(self) -> None:
-        for line in self.process.stderr:  # type: ignore[union-attr]
+        for line in self.process.stderr: 
             self._stderr_lines.append(line.rstrip())
             del self._stderr_lines[:-20]
 
@@ -193,7 +188,7 @@ def simplify_schema(schema: dict[str, Any]) -> dict[str, Any]:
     return result
 
 class GeminiApi:
-    RETRYABLE_STATUS = {429, 500, 502, 503, 504}  # límite de tasa y errores temporales del servidor
+    RETRYABLE_STATUS = {429, 500, 502, 503, 504} 
     MAX_INTENTOS = 3
 
     def __init__(self) -> None:
