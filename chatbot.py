@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent
-
+PROTOCOL_VERSION = "2025-11-25"
 def load_dotenv() -> None:
     """Carga un .env local simple, sin depender de una librería externa."""
     path = ROOT / ".env"

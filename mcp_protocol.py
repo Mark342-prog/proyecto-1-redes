@@ -5,6 +5,7 @@ from typing import Any
 
 from pharmacy_core import PharmacyService
 
+PROTOCOL_VERSION = "2025-11-25"
 SERVER_INFO = {"name": "simple-pharmacy-mcp", "version": "1.0.0"}
 
 
