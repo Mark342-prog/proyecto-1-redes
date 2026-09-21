@@ -141,6 +141,9 @@ con un historial por `sessionId`.
 
 ## 6. Desplegar el servidor MCP remoto
 
+> Guía detallada paso a paso en **[DEPLOY.md](DEPLOY.md)** (Google Cloud Run,
+> incluye verificación, logs y limitaciones conocidas).
+
 `remote_server.py` expone el mismo servicio de farmacia por HTTP
 (`POST /mcp`, `GET /health`), sin dependencias externas. Con Google Cloud Run:
 
@@ -200,6 +203,8 @@ mcp_protocol.py        Traducción JSON-RPC <-> PharmacyService (compartida)
 pharmacy_server.py    Transporte local: MCP sobre stdio
 remote_server.py       Transporte remoto: MCP sobre HTTP
 config.json             Qué servidores MCP arrancar y cómo
+Dockerfile               Imagen del servidor MCP remoto (solo para la nube)
+DEPLOY.md                 Guía de despliegue en Google Cloud Run
 static/                  Frontend web (HTML/CSS/JS)
 tests/                    Pruebas unitarias (unittest, sin dependencias externas)
 logs/                     Se genera solo: bitácora de interacciones MCP

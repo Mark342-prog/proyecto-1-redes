@@ -1,4 +1,3 @@
-"""Frontend web local y API JSON para el chatbot de farmacia (Mistral AI + MCP)."""
 
 from __future__ import annotations
 
@@ -18,8 +17,6 @@ MAX_BODY_BYTES = 1_000_000  # límite defensivo de tamaño de cuerpo (/api/chat 
 
 
 class AppState:
-    """Mantiene los clientes MCP y el historial de conversación por sesión mientras vive el proceso."""
-
     def __init__(self) -> None:
         load_dotenv()
         self.log = InteractionLog()

@@ -1,0 +1,19 @@
+# Nunca enviar secretos ni basura al build de la imagen
+.env
+.git
+.gitignore
+logs/
+workspace/
+tests/
+static/
+__pycache__/
+*.pyc
+pharmacy_data.json
+
+# El chatbot y el frontend no corren en la nube, solo el servidor MCP
+chatbot.py
+web_app.py
+pharmacy_server.py
+config.json
+README.md
+DEPLOY.md

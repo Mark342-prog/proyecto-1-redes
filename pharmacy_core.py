@@ -14,7 +14,6 @@ _CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f]")  # saltos de línea, tabs, etc. 
 
 
 def _validar_texto(valor: Any, campo: str, minimo: int = 2, maximo: int = MAX_TEXT_LENGTH) -> str:
-    """Convierte y valida un argumento de texto; lanza ValueError con un mensaje claro si es inválido."""
     if valor is None:
         raise ValueError(f"falta el campo obligatorio '{campo}'")
     if not isinstance(valor, str):

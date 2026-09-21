@@ -18,7 +18,6 @@ class McpError(Exception):
 
 
 class McpHandler:
-
     def __init__(self) -> None:
         self.service = PharmacyService()
         self.initialized = False
