@@ -1,9 +1,11 @@
 {
   "servers": {
+
+    
     "farmacia_local": {
       "transport": "stdio",
       "command": ["python", "pharmacy_server.py"],
-      "enabled": true
+      "enabled": false
     },
     "sistema_archivos": {
       "transport": "stdio",
@@ -16,9 +18,9 @@
       "enabled": true
     },
     "farmacia_remota": {
-      "transport": "http",
-      "url_env": "PHARMACY_REMOTE_URL",
-      "enabled": false
+      "transport": "http", 
+      "url_env": "PHARMACY_REMOTE_URL", 
+      "enabled": true
     }
   }
 }
