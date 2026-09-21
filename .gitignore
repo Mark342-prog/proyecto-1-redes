@@ -1,12 +1,14 @@
-# Variables de entorno (contiene la API key — NUNCA JAMAS subir)
+# Variables de entorno (contiene la API key — NUNCA subir)
 .env
 
 # Archivos generados por el proyecto
 logs/
 pharmacy_data.json
 
+# Python
 __pycache__/
 *.pyc
 
+# Entornos virtuales (si usas alguno)
 .venv/
 venv/

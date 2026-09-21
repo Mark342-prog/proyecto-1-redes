@@ -1,4 +1,0 @@
-{"timestamp": "2026-08-20T14:59:13.290480+00:00", "server": "farmacia_local", "direction": "request", "payload": {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-11-25", "capabilities": {}, "clientInfo": {"name": "simple-pharmacy-chatbot", "version": "2.0.0"}}}}
-{"timestamp": "2026-08-20T14:59:13.382687+00:00", "server": "farmacia_local", "direction": "response", "payload": {"jsonrpc": "2.0", "id": 1, "result": {"protocolVersion": "2025-11-25", "capabilities": {"tools": {"listChanged": false}}, "serverInfo": {"name": "simple-pharmacy-mcp", "version": "1.0.0"}}}}
-{"timestamp": "2026-08-20T14:59:13.383289+00:00", "server": "farmacia_local", "direction": "request", "payload": {"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}}}
-{"timestamp": "2026-08-20T14:59:13.383757+00:00", "server": "farmacia_local", "direction": "request", "payload": {"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}}

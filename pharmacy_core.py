@@ -9,12 +9,12 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-MAX_TEXT_LENGTH = 200  
-_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f]")  
+MAX_TEXT_LENGTH = 200  # límite defensivo contra payloads abusivos
+_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f]")  # saltos de línea, tabs, etc. no válidos en nombres/síntomas
 
 
 def _validar_texto(valor: Any, campo: str, minimo: int = 2, maximo: int = MAX_TEXT_LENGTH) -> str:
-    
+    """Convierte y valida un argumento de texto; lanza ValueError con un mensaje claro si es inválido."""
     if valor is None:
         raise ValueError(f"falta el campo obligatorio '{campo}'")
     if not isinstance(valor, str):
@@ -51,6 +51,7 @@ DATOS_POR_DEFECTO = {
 
 
 class PharmacyService:
+    """Implementa las operaciones deterministas de la farmacia con reglas básicas de seguridad."""
 
     def __init__(self, data_path: str | Path | None = None) -> None:
         configurado = data_path or os.getenv("PHARMACY_DATA")
@@ -80,7 +81,8 @@ class PharmacyService:
 
     @staticmethod
     def tool_definitions() -> list[dict[str, Any]]:
-        texto = lambda desc, minimo=2: {"type": "string", "minLength": minimo, "description": desc}
+        """Define las herramientas MCP expuestas por este servidor (caso de uso: cadena de farmacias)."""
+        texto = lambda desc, minimo=2: {"type": "string", "minLength": minimo, "description": desc}  # noqa: E731
         return [
             {
                 "name": "list_medicines",
@@ -127,6 +129,7 @@ class PharmacyService:
         return next((item for item in medicines if consulta in item["name"].casefold()), None)
 
     def call(self, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Ejecuta una herramienta por nombre. Lanza ValueError/KeyError en caso de error de negocio."""
         if not isinstance(arguments, dict):
             raise ValueError(f"'arguments' debe ser un objeto JSON, se recibió {type(arguments).__name__}")
         with self._lock:
